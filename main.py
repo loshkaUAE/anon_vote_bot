@@ -1,12 +1,20 @@
 import logging
+import json
 from collections import Counter
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import ApplicationBuilder, CommandHandler, CallbackQueryHandler, MessageHandler, ContextTypes, filters
+from telegram.ext import ApplicationBuilder, CommandHandler, CallbackQueryHandler, ContextTypes
 
 logging.basicConfig(level=logging.INFO)
 
-votes = {}  # user_id -> vote
-anonymous_mode = set()  # user_id, кто в анонимном чате
+VOTES_FILE = "votes.json"
+
+# Загружаем голоса из файла
+try:
+    with open(VOTES_FILE, "r") as f:
+        votes = json.load(f)
+        votes = {int(k): v for k, v in votes.items()}  # ключи должны быть int
+except FileNotFoundError:
+    votes = {}
 
 # Главная кнопка
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -14,16 +22,15 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         [InlineKeyboardButton("🟩 За открытые двери", callback_data="for")],
         [InlineKeyboardButton("🟥 Против", callback_data="against")],
         [InlineKeyboardButton("📊 Посмотреть результаты", callback_data="result")],
-        [InlineKeyboardButton("💬 Анонимный чат", callback_data="anon_chat")]
+        [InlineKeyboardButton("🔗 Вступить в группу", url="https://t.me/podslushkaKZO")]
     ]
     await update.message.reply_text(
-        "📢 *Голосование и анонимный чат*\n"
-        "Выберите вариант:",
+        "📢 *Голосование*\nВыберите вариант:",
         reply_markup=InlineKeyboardMarkup(keyboard),
         parse_mode="Markdown"
     )
 
-# Голосование и кнопки
+# Обработка голосования
 async def vote(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     user_id = query.from_user.id
@@ -31,12 +38,12 @@ async def vote(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if choice in ["for", "against"]:
         votes[user_id] = choice
+        # Сохраняем в файл
+        with open(VOTES_FILE, "w") as f:
+            json.dump(votes, f)
         await query.answer("✅ Голос принят!")
     elif choice == "result":
         await show_result(query)
-    elif choice == "anon_chat":
-        anonymous_mode.add(user_id)
-        await query.answer("💬 Теперь вы в анонимном чате. Отправляйте сообщения сюда!")
 
 # Показ результатов
 async def show_result(query):
@@ -63,25 +70,11 @@ async def show_result(query):
     await query.answer()
     await query.edit_message_text(text, parse_mode="Markdown")
 
-# Обработка сообщений в анонимном чате
-async def anonymous_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.message.from_user.id
-    if user_id in anonymous_mode:
-        # Отправляем всем, кто в анонимном чате
-        for uid in anonymous_mode:
-            if uid != user_id:
-                try:
-                    await context.bot.send_message(chat_id=uid, text=f"💬 Аноним: {update.message.text}")
-                except:
-                    pass  # если не удалось отправить
-        await update.message.delete()  # удаляем исходное сообщение для анонимности
-
 def main():
-    app = ApplicationBuilder().token("токен от @botfather").build()
+    app = ApplicationBuilder().token("токен от бота").build()
 
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CallbackQueryHandler(vote))
-    app.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), anonymous_message))
 
     print("✅ Bot started")
     app.run_polling()
