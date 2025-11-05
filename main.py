@@ -77,7 +77,7 @@ async def anonymous_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.delete()  # удаляем исходное сообщение для анонимности
 
 def main():
-    app = ApplicationBuilder().token("8594247473:AAF3gahl3-jwT1lpjbuN98_n88l0Jfdkxso").build()
+    app = ApplicationBuilder().token("токен от @botfather").build()
 
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CallbackQueryHandler(vote))
